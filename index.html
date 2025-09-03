@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Colliding Blocks Compute π</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet" />
+    <script defer src="./script.js"></script>
+  </head>
+  <body>
+    <main class="container">
+      <header class="header">
+        <h1>Colliding Blocks Compute π</h1>
+        <p class="subtitle">Perfectly elastic collisions between two 1D blocks and a wall. The total number of collisions approximates digits of π when the large mass is a power of 100.</p>
+      </header>
+
+      <section class="controls" aria-label="Simulation controls">
+        <div class="field">
+          <label for="smallMass">Small block mass (kg)</label>
+          <input id="smallMass" type="number" min="0.000001" step="any" value="1" />
+        </div>
+        <div class="field">
+          <label for="largeMass">Large block mass (kg)</label>
+          <input id="largeMass" type="number" min="0.000001" step="any" value="100" />
+        </div>
+        <div class="buttons">
+          <button id="startBtn" class="btn primary">Start</button>
+          <button id="pauseBtn" class="btn">Pause</button>
+          <button id="resetBtn" class="btn">Reset</button>
+        </div>
+        <div class="readout">
+          <div><span class="label">Collisions:</span> <span id="collisionCount">0</span></div>
+          <div><span class="label">Status:</span> <span id="statusText">Ready</span></div>
+        </div>
+      </section>
+
+      <section class="canvas-wrap" aria-label="Simulation canvas">
+        <canvas id="simCanvas" width="1000" height="240" role="img" aria-label="Blocks, wall, and track animation"></canvas>
+      </section>
+
+      <section class="help">
+        <h2>How it works</h2>
+        <ul>
+          <li><strong>Setup</strong>: The large block starts at rest near the wall. The small block starts to the right, moving left.</li>
+          <li><strong>Collisions</strong>: All collisions are perfectly elastic. We count block-block and block-wall collisions.</li>
+          <li><strong>Stop</strong>: The simulation ends when both blocks move right and can no longer collide.</li>
+          <li><strong>π connection</strong>: Set large mass to 100 for 2 digits (31), 10,000 for 3 digits (314), etc.</li>
+        </ul>
+        <p class="hint">Try: small mass = 1, large mass = 100 → 31 collisions. Large mass = 10,000 → 314 collisions.</p>
+      </section>
+    </main>
+  </body>
+  </html>
+
