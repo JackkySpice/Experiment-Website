@@ -12,9 +12,19 @@
   const collisionCountEl = document.getElementById("collisionCount");
   const statusTextEl = document.getElementById("statusText");
 
-  // Physical-to-pixel mapping
-  const PIXELS_PER_UNIT = 200; // 1 unit in sim space = 200 pixels
-  const WALL_OFFSET_PX = 40;   // wall inset from left edge
+  // Responsive layout: world units and CSS-pixel mapping (computed per resize)
+  const WORLD_WIDTH_U = 6.0;         // visible horizontal span in simulation units
+  const WALL_OFFSET_CSS = 20;        // wall inset from left edge (CSS px)
+  const RIGHT_MARGIN_CSS = 12;       // right padding (CSS px)
+  const FLOOR_MARGIN_BOTTOM_CSS = 60;// ground offset from bottom (CSS px)
+  const layout = {
+    cssWidth: canvas.clientWidth || 1000,
+    cssHeight: 240,
+    dpr: window.devicePixelRatio || 1,
+    ppUnitCss: 180, // CSS px per unit; updated on resize
+    wallXCss: WALL_OFFSET_CSS,
+    floorYCss: 180,
+  };
 
   // Block drawing parameters (in simulation units)
   const LARGE_WIDTH_U = 1.0;
@@ -82,20 +92,20 @@
   }
 
   function draw() {
-    const dpr = window.devicePixelRatio || 1;
-    // Optionally scale canvas for DPR (kept simple; fixed size canvas for now)
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Track and wall
-    const wallX = WALL_OFFSET_PX;
-    const floorY = canvas.height - 60;
+    const wallX = layout.wallXCss;
+    const floorY = layout.floorYCss;
+    const pp = layout.ppUnitCss; // CSS px per unit
+    const canvasCssWidth = layout.cssWidth;
+
     ctx.lineWidth = 2;
 
-    // Track line
+    // Track line (CSS px coordinates thanks to transform)
     ctx.strokeStyle = "#2a356e";
     ctx.beginPath();
     ctx.moveTo(0, floorY + 40);
-    ctx.lineTo(canvas.width, floorY + 40);
+    ctx.lineTo(canvasCssWidth, floorY + 40);
     ctx.stroke();
 
     // Wall rectangle
@@ -103,10 +113,10 @@
     ctx.fillRect(wallX - 8, floorY - 100, 8, 140);
 
     // Compute pixel positions for blocks (left edges)
-    const pxLargeX = wallX + state.xLarge * PIXELS_PER_UNIT;
-    const pxSmallX = wallX + state.xSmall * PIXELS_PER_UNIT;
-    const pxLargeW = LARGE_WIDTH_U * PIXELS_PER_UNIT;
-    const pxSmallW = SMALL_WIDTH_U * PIXELS_PER_UNIT;
+    const pxLargeX = wallX + state.xLarge * pp;
+    const pxSmallX = wallX + state.xSmall * pp;
+    const pxLargeW = LARGE_WIDTH_U * pp;
+    const pxSmallW = SMALL_WIDTH_U * pp;
     const blockY = floorY - 60;
 
     // Large block
@@ -201,6 +211,29 @@
     requestAnimationFrame(simulateFrame);
   }
 
+  function resizeCanvas() {
+    const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+    const rect = canvas.getBoundingClientRect();
+    const cssWidth = Math.max(300, rect.width || canvas.clientWidth || 320);
+    const cssHeight = Math.round(Math.max(220, Math.min(520, cssWidth * 0.5)));
+
+    // Set CSS size and internal pixel buffer size
+    canvas.style.height = cssHeight + "px";
+    canvas.width = Math.floor(cssWidth * dpr);
+    canvas.height = Math.floor(cssHeight * dpr);
+
+    // Draw in CSS pixel coordinates
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    // Update layout mapping
+    layout.cssWidth = cssWidth;
+    layout.cssHeight = cssHeight;
+    layout.dpr = dpr;
+    layout.ppUnitCss = Math.max(60, (cssWidth - WALL_OFFSET_CSS - RIGHT_MARGIN_CSS) / WORLD_WIDTH_U);
+    layout.wallXCss = WALL_OFFSET_CSS;
+    layout.floorYCss = cssHeight - FLOOR_MARGIN_BOTTOM_CSS;
+  }
+
   function advanceKinematics(dt) {
     if (dt <= 0) return;
     state.xSmall += state.vSmall * dt;
@@ -264,8 +297,69 @@
   });
 
   // Initialize and start RAF loop
+  resizeCanvas();
   resetSimulationFromInputs();
   state.lastFrameMs = performance.now();
   requestAnimationFrame(simulateFrame);
+
+  // Handle responsive resizing
+  let resizeRaf = 0;
+  window.addEventListener("resize", () => {
+    cancelAnimationFrame(resizeRaf);
+    resizeRaf = requestAnimationFrame(() => {
+      const running = state.running;
+      pauseSimulation();
+      resizeCanvas();
+      draw();
+      if (running && !state.finished) startSimulation();
+    });
+  });
+
+  // Lightweight verifier for common test masses (no rendering)
+  function computeCollisionCount(mSmall, mLarge) {
+    const EPS2 = 1e-12;
+    const wLarge = LARGE_WIDTH_U;
+    let xS = INITIAL_X_SMALL_U;
+    let xL = INITIAL_X_LARGE_U;
+    let vS = INITIAL_V_SMALL;
+    let vL = INITIAL_V_LARGE;
+    let count = 0;
+    let guard = 0;
+    while (guard++ < 100000) {
+      const relV = vL - vS;
+      const gap = xS - xL - wLarge;
+      const tBlock = relV > EPS2 ? Math.max(0, gap / relV) : Infinity;
+      const tWall = vL < -EPS2 ? xL / (-vL) : Infinity;
+      const tNext = Math.min(tBlock, tWall);
+      if (!isFinite(tNext)) break;
+      xS += vS * tNext;
+      xL += vL * tNext;
+      if (Math.abs(tNext - tWall) <= 1e-9) {
+        // wall
+        xL = 0;
+        vL = -vL;
+        count++;
+      } else {
+        // block
+        xS = xL + wLarge;
+        const u1 = vS, u2 = vL;
+        vS = ((mSmall - mLarge) / (mSmall + mLarge)) * u1 + (2 * mLarge / (mSmall + mLarge)) * u2;
+        vL = (2 * mSmall / (mSmall + mLarge)) * u1 + ((mLarge - mSmall) / (mSmall + mLarge)) * u2;
+        count++;
+      }
+      const wallOk = vL >= -EPS2;
+      const blockOk = (vL - vS) <= EPS2 && (xS - xL - wLarge) >= -EPS2;
+      if (wallOk && blockOk) break;
+    }
+    return count;
+  }
+
+  // Console verification for provided examples
+  try {
+    const c1 = computeCollisionCount(1, 100);
+    const c2 = computeCollisionCount(1, 10000);
+    // eslint-disable-next-line no-console
+    console.log("Verification counts:", { mLarge100: c1, mLarge10000: c2 });
+  } catch (_) {}
 })();
 
