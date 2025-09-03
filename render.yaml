@@ -1,0 +1,12 @@
+services:
+  - type: static_site
+    name: colliding-blocks-compute-pi
+    env: static
+    buildCommand: ""
+    staticPublishPath: .
+    pullRequestPreviewsEnabled: true
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: no-store
+
