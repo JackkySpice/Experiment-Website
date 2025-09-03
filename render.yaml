@@ -1,5 +1,5 @@
 services:
-  - type: static_site
+  - type: web
     name: colliding-blocks-compute-pi
     env: static
     buildCommand: ""
